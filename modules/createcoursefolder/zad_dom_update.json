@@ -1,0 +1,66 @@
+{
+  "requests": [
+    {
+      "deleteItem": {
+        "location": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "updateFormInfo": {
+        "info": {
+          "title": "Zadanie Domowe: Moduł ",
+          "description":
+          "Cześć! Nadszedł czas na wykonanie kolejnej pracy domowej. Na odpowiedzi będziemy czekać przez 7 dni od momentu gdy udostępniliśmy Ci ten arkusz - jeśli zależy Ci na sprawdzeniu Twojej pracy indywidualnie, to wyślij odpowiedzi przed upływem tego terminu. Zamkniemy możliwość nadsyłania odpowiedzi po upłynięciu czasu.\n\nOdpowiedzi zostaną sprawdzone i poprawione od razu w tym arkuszu, który następnie będzie odesłany do Ciebie e-mailem (mamy na to 7 dni). Dodatkowo, po upływie czasu na nadsyłanie prac, dodamy zadanie z kluczem odpowiedzi w formie pliku PDF  (będzie to po upływie czasu przesyłania odpowiedzi, tak by nikt nie podglądał :)).\n\nUpewnij się DWA RAZY, że podajesz swój poprawny adres e-mail by odpowiedzi na pewno do Ciebie trafiły."
+        },
+        "updateMask": "title,description"
+      }
+    },
+    {
+      "createItem": {
+        "item": {
+          "title": "Potwierdzam, że wpisany przeze mnie powyżej adres e-mail nie zawiera żadnej literówki.",
+          "questionItem": {
+            "question": {
+              "required": true,
+              "choiceQuestion": {
+                "type": "RADIO",
+                "options": [
+                  {
+                    "value": "Tak, sprawdzone dwa razy, nie ma literówki!"
+                  },
+                  {
+                    "value": "Nie sprawdzone i rozumiem, że jeśli literówka jest to NIE dotrą do mnie odpowiedzi."
+                  }
+                ],
+                "shuffle": false
+              }
+            }
+          }
+        },
+        "location": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "createItem": {
+        "item": {
+          "title": "Podaj swoje imię i nazwisko.",
+          "questionItem": {
+            "question": {
+              "required": true,
+              "textQuestion": {
+                "paragraph": false
+              }
+            }
+          }
+        },
+        "location": {
+          "index": 0
+        }
+      }
+    }
+  ]
+}

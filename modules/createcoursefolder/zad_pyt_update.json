@@ -1,0 +1,39 @@
+{
+  "requests": [
+    {
+      "deleteItem": {
+        "location": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "updateFormInfo": {
+        "info": {
+          "title": "Zadaj Pytanie: Moduł ",
+          "description":
+          "Masz pytanie do tego modułu? Zadaj je tutaj!\nNikt nie będzie wiedział KTO zadał pytanie, nawet my bo ta ankieta jest anonimowa!\n\n* Będziemy odpowiadać tylko na pytania związane z danym modułem. Jeśli masz jakiekolwiek inne pytania to też śmiało pisz - weźmiemy je pod uwagę w innych modułach lub w trakcie przygotowywania innych kursów."
+        },
+        "updateMask": "title,description"
+      }
+    },
+    {
+      "createItem": {
+        "item": {
+          "title": "Zadaj pytanie poniżej:",
+          "questionItem": {
+            "question": {
+              "required": true,
+              "textQuestion": {
+                "paragraph": true
+              }
+            }
+          }
+        },
+        "location": {
+          "index": 0
+        }
+      }
+    }
+  ]
+}

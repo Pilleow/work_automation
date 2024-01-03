@@ -10,11 +10,11 @@ from google.google_authorizer import GoogleAuthorizer
 
 class GDrive(GoogleAuthorizer):
     def create_course_files(self, parent_folder_id: str, number_of_modules: int) -> dict:
-        print("Started.")
         fld_zad_dom_id = self.create_folder("Zadania Domowe", parent_folder_id)
         fld_zad_ans_id = self.create_folder("Odpowiedzi", fld_zad_dom_id)
         fld_zad_pyt_id = self.create_folder("Zadaj Pytanie", parent_folder_id)
         fld_egz_id = self.create_folder("Egzaminy", parent_folder_id)
+
         print("Created folders.")
 
         file_ids = {
@@ -30,11 +30,11 @@ class GDrive(GoogleAuthorizer):
             file_ids["zad_ans"].append(fid)
             fid = self.create_file(f"Zadaj Pytanie - Moduł {i}", fld_zad_pyt_id, "application/vnd.google-apps.form")
             file_ids["zad_pyt"].append(fid)
-
         for i in [1, 2]:
             fid = self.create_file(f"Egzamin - Termin {'I' * i}", fld_egz_id, "application/vnd.google-apps.form")
             file_ids["egz"].append(fid)
-        print("Done.")
+
+        print("Created empty files.")
 
         return file_ids
 

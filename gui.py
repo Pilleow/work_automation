@@ -1,6 +1,8 @@
 import tkinter as tk
+import webbrowser
 import tkinter.messagebox
 from tkinter import ttk
+
 from modules.formstodocs.formstodocs import FormsToDocsScript
 from modules.createcoursefolder.createcoursefiles import CreateCourseFiles
 
@@ -53,9 +55,23 @@ class App(tk.Tk):
         num_of_modules_label = ttk.Label(ccf_frame, text="Module Count")
         num_of_modules_entry = ttk.Entry(ccf_frame, width=14, justify="center")
 
+        num_of_modules_entry.insert(0, "1")
+
         def ccf_run():
             try:
-                Scripts.ccf.run(folder_id_entry.get().strip(), int(num_of_modules_entry.get().strip()))
+                file_ids = Scripts.ccf.run(folder_id_entry.get().strip(), int(num_of_modules_entry.get().strip()))
+                if tk.messagebox.showinfo("Warning", "The Google Forms API does not allow changing forms settings.\n\nMake sure you set the settings of each Google Form manually. Open each Form in a new tab?", icon=tkinter.messagebox.WARNING, type=tkinter.messagebox.YESNO) == tkinter.messagebox.YES:
+                    for k in file_ids:
+                        if k == "zad_ans":
+                            continue
+                        for fid in file_ids[k]:
+                            webbrowser.open(f"https://docs.google.com/forms/d/{fid}/edit")
+                        if k != "egz" and tk.messagebox.showinfo("Warning",
+                                                  "Open the next batch of Forms?",
+                                                  icon=tkinter.messagebox.WARNING,
+                                                  type=tkinter.messagebox.YESNO) == tkinter.messagebox.NO:
+                            break
+
             except Exception as e:
                 tk.messagebox.showinfo("Error", str(e), icon=tkinter.messagebox.ERROR)
                 raise e
@@ -79,8 +95,8 @@ class App(tk.Tk):
         ccf_frame.grid(row=0, column=1, padx=2*padx, pady=2*pady)
 
         # drawing the main gui
-        tab_control.add(ccf_frame, text="CCF")
-        tab_control.add(ftd_frame, text="FTD")
+        tab_control.add(ccf_frame, text="CreateCourseFolders")
+        tab_control.add(ftd_frame, text="FormsToDocs")
         tab_control.pack(expand=1, fill="both", padx=2*padx, pady=(0.5*pady, 2*pady))
 
 

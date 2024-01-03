@@ -1,0 +1,120 @@
+{
+  "requests": [
+    {
+      "deleteItem": {
+        "location": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "updateFormInfo": {
+        "info": {
+          "title": "Egzamin: Termin I",
+          "description":
+          "Nadszedł dzień egzaminu! Trzymamy za Ciebie kciuki - weź głęboki wdech i wydech! Pamiętaj, że wzięłaś/eś udział w kursie, żeby nauczyć się więcej oraz poczuć pewniej :) Nie poddawaj się!\n\n\n- Egzamin trwa 2 godziny. Ten arkusz został włączony o godzinie 08:00 i zostanie wyłączony dokładnie o 10:01. Musisz wysłać swoje odpowiedzi przed upłynięciem czasu, w przeciwnym razie je utracisz i Twoja praca nie zostanie oceniona.\n- Musisz zdobyć 70% żeby zdać egzamin - pytania, które zadajemy są oparte na wiedzy jaką mamy nadzieję posiadasz po naszym kursie.\n- Wszyscy uczestnicy, którzy zdadzą egzamin, otrzymają certyfikat oraz możliwość odebrania PUNKTÓW EDUKACYJNYCH\n- UWAGA: Nie otrzymasz kopii tych pytań na e-mail ani swoich odpowiedzi.\n- Egzaminy zostaną sprawdzone w ciągu 7 dni, jeśli po tym czasie nie otrzymała/eś odpowiedzi to skontaktuj się z nami.\n\n\nPrzewidujemy termin poprawkowy jeśli podwinie Ci się noga.\n\n\nPowodzenia!"
+        },
+        "updateMask": "title,description"
+      }
+    },
+    {
+      "createItem": {
+        "item": {
+          "title": "Pamiętaj, że nie otrzymasz kopii swoich odpowiedzi tego arkusza.",
+          "questionItem": {
+            "question": {
+              "required": true,
+              "choiceQuestion": {
+                "type": "RADIO",
+                "options": [
+                  {
+                    "value": "Tak, rozumiem, że sprawdzona kopia egzaminu NIE zostanie do mnie wysłana."
+                  },
+                  {
+                    "value": "Nie rozumiem."
+                  }
+                ],
+                "shuffle": false
+              }
+            }
+          }
+        },
+        "location": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "createItem": {
+        "item": {
+          "title": "Egzamin wystartował o godzinie 08:00 i trwa 2 godziny czyli dokładnie o godzinie 10:01 ten arkusz odpowiedzi zostanie wyłączony, więc upewnij się, że wyślesz swoje odpowiedzi PRZED zakończeniem egzaminu. Po tym czasie utracisz swoje odpowiedzi.",
+          "questionItem": {
+            "question": {
+              "required": true,
+              "choiceQuestion": {
+                "type": "RADIO",
+                "options": [
+                  {
+                    "value": "Tak, najpóźniej o godzinie 10:00 muszę wysłać arkusz by nie stracić odpowiedzi."
+                  },
+                  {
+                    "value": "Nie rozumiem."
+                  }
+                ],
+                "shuffle": false
+              }
+            }
+          }
+        },
+        "location": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "createItem": {
+        "item": {
+          "title": "Potwierdzam, że wpisany przeze mnie powyżej adres e-mail nie zawiera żadnej literówki.",
+          "questionItem": {
+            "question": {
+              "required": true,
+              "choiceQuestion": {
+                "type": "RADIO",
+                "options": [
+                  {
+                    "value": "Tak, sprawdzone dwa razy."
+                  },
+                  {
+                    "value": "Nie sprawdzone."
+                  }
+                ],
+                "shuffle": false
+              }
+            }
+          }
+        },
+        "location": {
+          "index": 0
+        }
+      }
+    },
+    {
+      "createItem": {
+        "item": {
+          "title": "Podaj swoje imię i nazwisko.",
+          "questionItem": {
+            "question": {
+              "required": true,
+              "textQuestion": {
+                "paragraph": false
+              }
+            }
+          }
+        },
+        "location": {
+          "index": 0
+        }
+      }
+    }
+  ]
+}
