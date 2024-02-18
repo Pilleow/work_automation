@@ -1,7 +1,7 @@
 import tkinter as tk
 import webbrowser
 import tkinter.messagebox
-from tkinter import ttk
+from tkinter import ttk, IntVar
 
 from modules.formstodocs.formstodocs import FormsToDocsScript
 from modules.createcoursefolder.createcoursefiles import CreateCourseFiles
@@ -34,15 +34,36 @@ class App(tk.Tk):
             ccf = CreateCourseFiles(scopes, token_path, client_secrets_path)
 
         # building the FTD gui
+        use_numeration = IntVar()
         ftd_frame = ttk.Frame(tab_control)
         form_id_label = ttk.Label(ftd_frame, text="Form ID")
         form_id_entry = ttk.Entry(ftd_frame, width=44)
         docs_id_label = ttk.Label(ftd_frame, text="Document ID")
         docs_id_entry = ttk.Entry(ftd_frame, width=44)
+        numeration_start_entry = ttk.Entry(ftd_frame, width=2)
+        numeration_start_label = ttk.Label(ftd_frame, text="Start Numeration At")
+        use_numeration_check = tk.Checkbutton(ftd_frame, text='Use Numeration', variable=use_numeration, onvalue=1, offvalue=0)
 
         def ftd_run():
+            num_start = numeration_start_entry.get().strip()
+            if num_start.isdigit():
+                num_start = int(num_start)
+            else:
+                num_start = 0
+
+            forms_id = form_id_entry.get().strip().split("/")
+            if len(forms_id) > 1:
+                forms_id = forms_id[-2]
+            else:
+                forms_id = forms_id[0]
+            docs_id = docs_id_entry.get().strip().split("/")
+            if len(docs_id) > 1:
+                docs_id = docs_id[-2]
+            else:
+                docs_id = docs_id[0]
+
             try:
-                Scripts.ftd.run(form_id_entry.get().strip(), docs_id_entry.get().strip())
+                Scripts.ftd.run(forms_id, docs_id, use_numeration.get(), num_start)
             except Exception as e:
                 tk.messagebox.showinfo("Error", str(e), icon=tkinter.messagebox.ERROR)
                 raise e
@@ -79,6 +100,9 @@ class App(tk.Tk):
 
 
         # drawing the FTD gui
+        use_numeration_check.grid(row=2, column=0, padx=padx, pady=0)
+        numeration_start_entry.grid(row=2, column=1, padx=padx, pady=0)
+        numeration_start_label.grid(row=2, column=2, padx=padx, pady=0)
         form_id_label.grid(row=1, column=0, padx=padx, pady=0)
         docs_id_label.grid(row=1, column=1, padx=padx, pady=0)
         form_id_entry.grid(row=0, column=0, padx=padx, pady=0)

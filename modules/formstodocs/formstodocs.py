@@ -11,7 +11,7 @@ class FormsToDocsScript(Script):
         self.gf.authorize(self.token_path, self.client_secrets_path)
         self.gd.authorize(self.token_path, self.client_secrets_path)
 
-    def run(self, form_id: str, docs_id: str):
+    def run(self, form_id: str, docs_id: str, use_numeration: bool, numeration_start: int):
         try:
             assert (len(form_id) == 44)
             assert (len(docs_id) == 44)
@@ -21,7 +21,7 @@ class FormsToDocsScript(Script):
         form = self.gf.get_form_data(form_id)
         form["items"].reverse()
         requests = []
-        index = 0
+        index = numeration_start - 1
 
         def add_as_insert_text(t):
             requests.append(
@@ -80,23 +80,12 @@ class FormsToDocsScript(Script):
 
         for q in form["items"]:
             answers = False
-            correct_answers = {}
 
             # czy pytanie zawiera odpowiedzi?
             if ('questionItem' in q
                     and 'question' in q['questionItem']
                     and 'choiceQuestion' in q['questionItem']['question']):
                 answers = True
-
-            # tworzenie listy prawidłowych odpowiedzi
-            if (answers
-                    and 'questionItem' in q
-                    and 'question' in q['questionItem']
-                    and 'grading' in q['questionItem']['question']
-                    and 'correctAnswers' in q['questionItem']['question']['grading']
-                    and 'answers' in q['questionItem']['question']['grading']['correctAnswers']):
-                for i, a in enumerate(q['questionItem']['question']['grading']['correctAnswers']['answers']):
-                    correct_answers[a['value']] = self.ALPHABET[i]
 
             # odpowiedzi i prawidłowa odpowiedź
             text = ""
@@ -105,8 +94,15 @@ class FormsToDocsScript(Script):
                 qa = q['questionItem']['question']['choiceQuestion']
                 for j, a in enumerate(qa["options"]):
                     text += f"  {self.ALPHABET[j]}. {a['value']}\n"
-                    if a['value'] in correct_answers:
-                        cor_ans_txt += correct_answers[a['value']] + " "
+                    try:
+                        # this is stupid but it works
+                        for ca in q['questionItem']['question']['grading']['correctAnswers']['answers']:
+                            print(ca, a)
+                            if ca == a:
+                                cor_ans_txt += self.ALPHABET[j] + " "
+                                break
+                    except KeyError:
+                        pass
                 cor_ans_txt += "\n\n"
                 add_as_insert_text(cor_ans_txt)
                 make_bold(cor_ans_txt)
@@ -115,15 +111,18 @@ class FormsToDocsScript(Script):
                 make_unbold(text)
 
             # tytuł pytania
-            text = f"{q['title']}\n\n"
-            add_as_insert_text(text)
-            if answers:
-                make_bold(text)
-            else:
-                make_unbold(text)
+            try:
+                text = f"{q['title']}\n\n"
+                add_as_insert_text(text)
+                if answers:
+                    make_bold(text)
+                else:
+                    make_unbold(text)
+            except KeyError:
+                pass
 
             # numer pytania
-            if answers:
+            if answers and use_numeration:
                 text = f"{index}. "
                 add_as_insert_text(text)
                 make_bold(text)
