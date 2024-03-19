@@ -26,6 +26,18 @@ class Teachable(TeachableAuthorizer):
         response = self._send_request(url)
         return response.json()
 
+    def get_video_data(self, course_id, lecture_id, video_id) -> dict:
+        """
+        https://docs.teachable.com/reference/showlecture
+        :param course_id:
+        :param lecture_id:
+        :param video_id:
+        :return:
+        """
+        url = f"https://developers.teachable.com/v1/courses/{course_id}/lectures/{lecture_id}/videos/{video_id}"
+        response = self._send_request(url)
+        return response.json()
+
     def authorize(self, teachable_key_path):
         with open(teachable_key_path, "r") as f:
             self.key = json.load(f)["key"]

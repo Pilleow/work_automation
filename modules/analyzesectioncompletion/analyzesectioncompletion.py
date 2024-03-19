@@ -1,6 +1,7 @@
 import re
 import time
 import json
+from tqdm import tqdm
 
 from modules.script import Script
 from teachable.teachable import Teachable
@@ -12,6 +13,7 @@ class AnalyzeSectionCompletion(Script):
     OKAY = f"  {ANSI.OKGREEN}[✓]{ANSI.ENDC}  "
     WARNING = f"  {ANSI.WARNING}[?]{ANSI.ENDC}  "
     ERROR = f"  {ANSI.FAIL}[✗]{ANSI.ENDC}  "
+    RATE_LIMIT_DELAY_SLEEP = 0.2  # https://docs.teachable.com/docs/rate-limits-1
 
     def __init__(self, teachable_key_path: str, scopes=(), token_path=""):
         super().__init__(scopes, token_path, teachable_key_path)
@@ -409,34 +411,54 @@ class AnalyzeSectionCompletion(Script):
                 }
             }
         ]
-        # response = self.teachable.get_course(course_id)
-        # section = list(filter(
-        #     lambda item: item["name"] == section_name,
-        #     response["course"]["lecture_sections"]
-        # ))[0]
-        # lecture_data = []
-        # for lecture in section["lectures"]:
-        #     time.sleep(0.2)  # https://docs.teachable.com/docs/rate-limits-1
-        #     lecture_data.append(self.teachable.get_lecture(course_id, lecture["id"]))
+        response = self.teachable.get_course(course_id)
+        section = list(filter(
+            lambda item: item["name"] == section_name,
+            response["course"]["lecture_sections"]
+        ))[0]
+        lecture_data = []
+        for lecture in tqdm(section["lectures"], colour="#47b1fc", ncols=100, desc="Pobieranie danych o sekcjach", total=len(section["lectures"])):
+            time.sleep(self.RATE_LIMIT_DELAY_SLEEP)
+            lecture_data.append(self.teachable.get_lecture(course_id, lecture["id"]))
 
-        self._send_msg(self.RUNNING, "Start etapu 0 - konwencje nazwowe.")
+        # ------------------ etap 1 ------------------------
+
+        self._send_msg(self.RUNNING, "Start etapu 1 - konwencje nazwowe.")
         self.indent = 1
         lecture_parts = self.test_konwencje_nazwowe(lecture_data)
         self.indent = 0
         if lecture_parts is None:
-            self._send_msg(self.ERROR, "Test nie przeszedł etapu 0 - konwencje nazwowe.\n")
+            self._send_msg(self.ERROR, "Test nie przeszedł etapu 1 - konwencje nazwowe.\n")
             return
         else:
-            self._send_msg(self.OKAY, "Test przeszedł etap 0 - konwencje nazwowe.\n")
+            self._send_msg(self.OKAY, "Test przeszedł etap 1 - konwencje nazwowe.\n")
 
-        print(lecture_parts)
-        # todo kontynuuj tutaj
-        # w `lecture_parts` masz rozdzielone każdy rodzaj lekcji dla kolejnych etapów
+        # ------------------ etap 2 ------------------------
 
-    def _send_msg(self, _type: str, msg: str) -> None:
-        assert (_type in (self.RUNNING, self.ERROR, self.WARNING, self.OKAY))
+        self._send_msg(self.RUNNING, "Start etapu 2 - walidacja zawartości lekcji.")
+        self.indent = 1
 
-        print(self.indent * "      ", _type, msg)
+        out = 0
+        out += not self.test_answers_for_hw(lecture_parts["odp_do_zad_dom"])
+        out += not self.test_workbook(lecture_parts["zeszyt_cw"])
+        out += not self.test_quiz_before(lecture_parts["quiz_przed"])
+        for vid in lecture_parts["nagranie"]:
+            out += not self.test_video(vid, course_id, vid["id"])
+            time.sleep(self.RATE_LIMIT_DELAY_SLEEP)
+        out += not self.test_quiz_after(lecture_parts["quiz_po"])
+        for qna in lecture_parts["qna"]:
+            out += not self.test_qna(qna, course_id, qna["id"])
+        out += not self.test_zad_pyt(lecture_parts["zad_pyt"])
+        out += not self.test_zad_dom(lecture_parts["zad_dom"])
+
+        self.indent = 0
+        if out > 0:
+            self._send_msg(self.ERROR, "Test nie przeszedł etapu 2 - walidacja zawartości lekcji.\n")
+            return
+        else:
+            self._send_msg(self.OKAY, "Test przeszedł etap 2 - walidacja zawartości lekcji.\n")
+
+    # ---------------------- testing methods below ---------------------------------------------
 
     def test_konwencje_nazwowe(self, lectures) -> dict | None:
         out = {
@@ -549,10 +571,104 @@ class AnalyzeSectionCompletion(Script):
             name_index += 1
         return out
 
+    def test_answers_for_hw(self, content: dict | None) -> bool:
+        if content is None:
+            return True
+        for att in content["attachments"]:
+            if self._check_for_pdf(att):
+                self._send_msg(self.OKAY, "Odpowiedzi do zadania domowego - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, "Odpowiedzi do zadania domowego - brak PDF z odpowiedziami.")
+        return False
+
+    def test_workbook(self, content: dict) -> bool:
+        if content is None:
+            return True
+        for att in content["attachments"]:
+            if self._check_for_pdf(att):
+                self._send_msg(self.OKAY, "Odpowiedzi do zadania domowego - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, "Odpowiedzi do zadania domowego - brak PDF z odpowiedziami.")
+        return False
+
+    def test_quiz_before(self, content: dict) -> bool:
+        for att in content["attachments"]:
+            if self._check_for_valid_quiz(att):
+                self._send_msg(self.OKAY, "Quiz przed zajęciami - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, "Quiz przed zajęciami - brak poprawnie ustawionego quizu.")
+        return False
+
+    def test_video(self, content: dict, course_id: int, lecture_id: int) -> bool:
+        for att in content["attachments"]:
+            if self._check_for_valid_video(att, course_id, lecture_id):
+                self._send_msg(self.OKAY, f"{content['name']} - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, f"{content['name']} - brak nagrania lub thumbnail.")
+        return False
+
+    def test_quiz_after(self, content: dict) -> bool:
+        for att in content["attachments"]:
+            if self._check_for_valid_quiz(att):
+                self._send_msg(self.OKAY, "Sprawdź siebie - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, "Sprawdź siebie - brak poprawnie ustawionego quizu.")
+        return False
+
+    def test_qna(self, content: dict, course_id: int, lecture_id: int) -> bool:
+        for att in content["attachments"]:
+            if self._check_for_valid_video(att, course_id, lecture_id) or self._check_for_valid_textandimages(att) or self._check_for_pdf(att):
+                self._send_msg(self.OKAY, f"{content['name']} - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, f"{content['name']} - brak dodanego nagrania, tekstu lub PDF.")
+        return False
+
+    def test_zad_pyt(self, content: dict) -> bool:
+        for att in content["attachments"]:
+            if self._check_for_valid_gform_cc(att):
+                self._send_msg(self.OKAY, "Zadaj pytanie - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, "Zadaj pytanie - brak dodanego formularza Google Forms.")
+        return False
+
+    def test_zad_dom(self, content: dict) -> bool:
+        for att in content["attachments"]:
+            if self._check_for_valid_textandimages(att) and att["text"].find("https://docs.google.com/forms/d/e/") != -1:
+                self._send_msg(self.OKAY, "Zadanie domowe - zawartość prawidłowa.")
+                return True
+        self._send_msg(self.ERROR, "Zadanie domowe - brak dodanego tekstu lub prawidłowego linku.")
+        return False
+
+    # ---------------------- testing methods above ---------------------------------------------
+
+    def _check_for_valid_gform_cc(self, att: dict) -> bool:
+        return att["kind"] == "code_embed" and att["text"].startswith('<iframe src="https://docs.google.com/forms/d/e/')
+
+    def _check_for_valid_textandimages(self, att: dict) -> bool:
+        return att["kind"] == "text" and len(att["text"]) > 0
+
+    def _check_for_valid_video(self, att: dict, course_id: int, lecture_id: int) -> bool:
+        if att["kind"] != "video":
+            return False
+        vid_data = self.teachable.get_video_data(course_id, lecture_id, att["id"])
+        with open(f"{att['name']}.json", "w+") as f:
+            json.dump(vid_data, f, indent=2)
+        return vid_data["video"]["url_thumbnail"] is not None
+
+    def _check_for_valid_quiz(self, att: dict) -> bool:
+        return att["kind"] == "quiz" and len(att["quiz"]["questions"]) > 0
+
+    def _check_for_pdf(self, att: dict) -> bool:
+        return att["kind"] == "pdf_embed" and att["url"] is not None and att["file_extension"] == "pdf"
+
+    def _send_msg(self, _type: str, msg: str) -> None:
+        assert (_type in (self.RUNNING, self.ERROR, self.WARNING, self.OKAY))
+        print(self.indent * "      ", _type, msg)
+
 
 if __name__ == "__main__":
     asc = AnalyzeSectionCompletion("/home/igor/Documents/code/py/work_automation/credentials/teachable_key.json")
-    asc.run(2468606, "MODUŁ 3")
+    asc.run(2362042, "Moduł 7 - Neurologiczne stany nagłe")
 
 """
 
@@ -600,15 +716,17 @@ Ma być sprawdzone dla każdego modułu (sekcji):
         - czy Quiz ma dodane co najmniej jedno pytanie
 
     6. Q&A (jeżeli istnieje)
-        - czy ma dodane Video lub Text & Images
+        - czy ma dodane Video lub Text & Images lub PDF
     
     7. Zadaj pytanie
         - czy istnieje
         - czy ma dodany Custom Code
         - czy Custom Code ma dodany embed typu Google Forms
+          (czy rozpoczyna się: <iframe src="https://docs.google.com/forms/d/e/)
         
     8. Zadanie domowe
         - czy istnieje
         - czy ma dodany Text & Images
-        - czy Text & Images ma dodany link typu Google Forms
+        - czy Text & Images ma dodany link typu Google Forms 
+          (czy zawiera: https://docs.google.com/forms/d/e/)
 """
