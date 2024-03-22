@@ -1,4 +1,5 @@
 import requests
+import urllib.request
 import json
 
 from teachable.teachable_authorizer import TeachableAuthorizer
@@ -38,14 +39,20 @@ class Teachable(TeachableAuthorizer):
         response = self._send_request(url)
         return response.json()
 
+    def get_static_url(self, url, filename):
+        urllib.request.urlretrieve(url, filename)
+
     def authorize(self, teachable_key_path):
         with open(teachable_key_path, "r") as f:
             self.key = json.load(f)["key"]
 
-    def _send_request(self, url):
+    def _send_request(self, url, use_json: bool = True):
         response = requests.get(url, headers=self._build_headers())
         if response.status_code != 200:
-            raise Exception(f"GET Request returned code {response.status_code}. Details:\n{response.json()}")
+            if use_json:
+                raise Exception(f"GET Request returned code {response.status_code}. Details:\n{response.json()}")
+            else:
+                raise Exception(f"GET Request returned code {response.status_code}. Details:\n{response.content}")
         return response
 
     def _build_headers(self):

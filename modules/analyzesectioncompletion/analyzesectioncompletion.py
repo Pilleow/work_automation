@@ -1,6 +1,8 @@
 import re
+import os
 import time
 import json
+from PIL import Image
 from tqdm import tqdm
 
 from modules.script import Script
@@ -9,21 +11,26 @@ from misc.terminalcolors import ANSITerminalColors as ANSI
 
 
 class AnalyzeSectionCompletion(Script):
-    RUNNING = f"  {ANSI.OKBLUE}[⚙]{ANSI.ENDC}  "
-    OKAY = f"  {ANSI.OKGREEN}[✓]{ANSI.ENDC}  "
-    WARNING = f"  {ANSI.WARNING}[?]{ANSI.ENDC}  "
-    ERROR = f"  {ANSI.FAIL}[✗]{ANSI.ENDC}  "
+    RUNNING = f"{ANSI.OKBLUE}[⚙]{ANSI.ENDC}  "
+    OKAY = f"{ANSI.OKGREEN}[✓]{ANSI.ENDC}  "
+    WARNING = f"{ANSI.WARNING}[?]{ANSI.ENDC}  "
+    ERROR = f"{ANSI.FAIL}[✗]{ANSI.ENDC}  "
+    WARNINGPOINT = f"{ANSI.WARNING} > {ANSI.ENDC}  "
     RATE_LIMIT_DELAY_SLEEP = 0.2  # https://docs.teachable.com/docs/rate-limits-1
 
     def __init__(self, teachable_key_path: str, scopes=(), token_path=""):
         super().__init__(scopes, token_path, teachable_key_path)
+        self._thumbnails = {}
         self.teachable = Teachable()
         self.teachable.authorize(teachable_key_path)
         self.indent = 0
 
     def run(self, course_id: int, section_name: str):
         self.indent = 0
+        self._thumbnails.clear()
         response = self.teachable.get_course(course_id)
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(" ", flush=True)
         self.send_msg(0, self.RUNNING, f"Skrypt Analyze Section Completion uruchomiony.\n")
         self.send_msg(0, self.OKAY, f"Załadowano kurs: {response['course']['name']}")
         section = list(filter(
@@ -40,8 +47,8 @@ class AnalyzeSectionCompletion(Script):
         print()
         t_start = 0
         t_end = 0
-        for lecture in tqdm(section["lectures"], colour="white", ncols=100, desc="Pobieranie danych o sekcjach", total=len(section["lectures"])):
-            time.sleep(self.RATE_LIMIT_DELAY_SLEEP - (t_end - t_start))
+        for lecture in tqdm(section["lectures"], colour="white", ncols=90, desc="Pobieranie danych o sekcjach", total=len(section["lectures"])):
+            time.sleep(max(0.0, self.RATE_LIMIT_DELAY_SLEEP - (t_end - t_start)))
             t_start = time.time()
             lecture_data.append(self.teachable.get_lecture(course_id, lecture["id"]))
             t_end = time.time()
@@ -69,14 +76,33 @@ class AnalyzeSectionCompletion(Script):
         out += not self.test_workbook(lecture_parts["zeszyt_cw"])
         out += not self.test_quiz_before(lecture_parts["quiz_przed"])
         for vid in lecture_parts["nagranie"]:
-            out += not self.test_video(vid)
-            time.sleep(0.001)
+            out += not self.test_video(vid, course_id, vid["id"])
         out += not self.test_quiz_after(lecture_parts["quiz_po"])
         for qna in lecture_parts["qna"]:
-            out += not self.test_qna(qna)
-            time.sleep(0.001)
+            out += not self.test_qna(qna, course_id, qna["id"])
         out += not self.test_zad_pyt(lecture_parts["zad_pyt"])
         out += not self.test_zad_dom(lecture_parts["zad_dom"])
+
+        try:
+            os.remove("_temp_thumb.png")
+        except FileNotFoundError:
+            pass
+
+        if len(self._thumbnails) > 1:
+            print()
+            self.send_msg(1, self.WARNING, "Wykryto podejrzane thumbnail. Sprawdź nagrania:")
+            max_length_list = list(self._thumbnails.keys())[0]
+            for thumb_list in self._thumbnails:
+                if len(self._thumbnails[thumb_list]) > len(self._thumbnails[max_length_list]):
+                    max_length_list = thumb_list
+            if len(self._thumbnails[max_length_list]) == 1:
+                max_length_list = None
+            for thumb_list in self._thumbnails:
+                if thumb_list is max_length_list:
+                    continue
+                for name in self._thumbnails[thumb_list]:
+                    self.send_msg(1, self.WARNINGPOINT, name)
+            print()
 
         self.indent = 0
         if out > 0:
@@ -105,7 +131,7 @@ class AnalyzeSectionCompletion(Script):
                     self.display_name = self.regex
 
             def compare(self, s: str) -> bool:
-                if re.match(self.regex, s):
+                if re.fullmatch(self.regex.strip(), s.strip()):
                     self.strings_matched += 1
                     return True
                 return False
@@ -150,9 +176,9 @@ class AnalyzeSectionCompletion(Script):
             "odp_do_zad_dom": NameContainer("Odpowiedzi do zadania domowego z modu\u0142u [0-9]+", NameContainer.ONE, NameContainer.SEND_WARNING, display_name="Odpowiedzi do zadania domowego"),
             "zeszyt_cw": NameContainer("Zeszyt ćwiczeń", NameContainer.ONE),
             "quiz_przed": NameContainer("Sprawdź siebie", NameContainer.ONE),
+            "qna": NameContainer("[0-9]+\.[0-9]+ Q&A", NameContainer.ANY, NameContainer.SEND_WARNING, display_name="Q&A"),
             "nagranie": NameContainer("[0-9]+\.[0-9]+ .+", NameContainer.ANY, display_name="Nagrania kursu"),
             "quiz_po": NameContainer("Quiz po zajęciach", NameContainer.ONE),
-            "qna": NameContainer("[0-9]+\.[0-9]+ Q&A", NameContainer.ANY, NameContainer.SEND_WARNING, display_name="Q&A"),
             "zad_pyt": NameContainer("Zadaj pytanie", NameContainer.ONE),
             "zad_dom": NameContainer("Zadanie domowe", NameContainer.ONE)
         }
@@ -173,6 +199,8 @@ class AnalyzeSectionCompletion(Script):
             else:
                 self.send_msg(1, self.WARNING, f"`{lec_name}` istnieje jako dodatkowa lekcja.")
                 out["inne"].append(lec["lecture"])
+
+        print()
 
         for key in names_keys:
             if not names[key].found_all() and names[key].on_missing is NameContainer.SEND_ERROR:
@@ -200,9 +228,9 @@ class AnalyzeSectionCompletion(Script):
             return True
         for att in content["attachments"]:
             if self._check_for_pdf(att):
-                self.send_msg(1, self.OKAY, "Odpowiedzi do zadania domowego - zawartość prawidłowa.")
+                self.send_msg(1, self.OKAY, "Zeszyt ćwiczeń - zawartość prawidłowa.")
                 return True
-        self.send_msg(1, self.ERROR, "Odpowiedzi do zadania domowego - brak PDF z odpowiedziami.")
+        self.send_msg(1, self.ERROR, "Zeszyt ćwiczeń - brak PDF.")
         return False
 
     def test_quiz_before(self, content: dict) -> bool:
@@ -213,9 +241,9 @@ class AnalyzeSectionCompletion(Script):
         self.send_msg(1, self.ERROR, "Quiz przed zajęciami - brak poprawnie ustawionego quizu.")
         return False
 
-    def test_video(self, content: dict) -> bool:
+    def test_video(self, content: dict, course_id: int, lecture_id: int) -> bool:
         for att in content["attachments"]:
-            if self._check_for_valid_video(att):
+            if self._check_for_valid_video(att, course_id, lecture_id, content["name"]):
                 self.send_msg(1, self.OKAY, f"{content['name']} - zawartość prawidłowa.")
                 return True
         self.send_msg(1, self.ERROR, f"{content['name']} - brak nagrania.")
@@ -229,9 +257,9 @@ class AnalyzeSectionCompletion(Script):
         self.send_msg(1, self.ERROR, "Sprawdź siebie - brak poprawnie ustawionego quizu.")
         return False
 
-    def test_qna(self, content: dict) -> bool:
+    def test_qna(self, content: dict, course_id: int, lecture_id: int) -> bool:
         for att in content["attachments"]:
-            if self._check_for_valid_video(att) or self._check_for_valid_textandimages(att) or self._check_for_pdf(att):
+            if self._check_for_valid_textandimages(att) or self._check_for_pdf(att) or self._check_for_valid_video(att, course_id, lecture_id, content["name"]):
                 self.send_msg(1, self.OKAY, f"{content['name']} - zawartość prawidłowa.")
                 return True
         self.send_msg(1, self.ERROR, f"{content['name']} - brak dodanego nagrania, tekstu lub PDF.")
@@ -261,13 +289,29 @@ class AnalyzeSectionCompletion(Script):
     def _check_for_valid_textandimages(self, att: dict) -> bool:
         return att["kind"] == "text" and len(att["text"]) > 0
 
-    def _check_for_valid_video(self, att: dict, course_id: int = None, lecture_id: int = None) -> bool:
-        return att["kind"] == "video"
-        # sprawdzenie thumbnail wymaga analizy obrazu!!!
-        # if att["kind"] != "video":
-        #     return False
-        # vid_data = self.teachable.get_video_data(course_id, lecture_id, att["id"])
-        # return vid_data["video"]["url_thumbnail"] is not None
+    def _check_for_valid_video(self, att: dict, course_id: int, lecture_id: int, lecture_name: str) -> bool:
+        # sprawdzenie thumbnail wymaga analizy obrazu!!! nie ma w API pola śledzącego, czy dodano customowy thumbnail
+        if att["kind"] != "video":
+            return False
+        try:
+            vid_data = self.teachable.get_video_data(course_id, lecture_id, att["id"])
+        except Exception:
+            self.send_msg(1, self.ERROR, f"Ładowanie danych nagrania '{lecture_name}' nie powiodło się. Być może jest nadal przetwarzany?")
+            return False
+        url = vid_data["video"]["url_thumbnail"]
+        if url is None:
+            return False
+        data = self.teachable.get_static_url(url, "_temp_thumb.png")
+        img = Image.open('_temp_thumb.png')
+        img_width, img_height = img.size
+        imgkey = ""
+        imgkey += "".join([str(int(v/10) * 10) for v in img.getpixel((img_width // 6, img_height // 6))])  # top left
+        imgkey += "".join([str(int(v/10) * 10) for v in img.getpixel((img_width // 6, img_height * 5 // 6))])  # bottom left
+        imgkey += "".join([str(int(v/10) * 10) for v in img.getpixel((img_width * 5 // 6, img_height * 5 // 6))])  # bottom right
+        if imgkey not in self._thumbnails:
+            self._thumbnails[imgkey] = []
+        self._thumbnails[imgkey].append(lecture_name)
+        return True
 
     def _check_for_valid_quiz(self, att: dict) -> bool:
         return att["kind"] == "quiz" and len(att["quiz"]["questions"]) > 0
@@ -282,7 +326,7 @@ class AnalyzeSectionCompletion(Script):
 
 if __name__ == "__main__":
     asc = AnalyzeSectionCompletion("/home/igor/Documents/code/py/work_automation/credentials/teachable_key.json")
-    asc.run(2468606, "MODUŁ 1")
+    asc.run(2480145, "Test skryptu ASC")
 
 """
 
