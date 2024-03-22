@@ -82,7 +82,6 @@ class App(tk.Tk):
         folder_id_label = ttk.Label(ccf_frame, text="Parent Folder ID")
         num_of_modules_label = ttk.Label(ccf_frame, text="Module Count")
         num_of_modules_entry = ttk.Entry(ccf_frame, width=14, justify="center")
-
         num_of_modules_entry.insert(0, "1")
 
         def ccf_run():
@@ -114,6 +113,31 @@ class App(tk.Tk):
 
         ccf_button = tk.Button(ccf_frame, text="Generate", command=ccf_run, bg=main_color, fg="white")
 
+        # buidling the ASC gui
+        asc_frame = ttk.Frame(tab_control)
+        course_id_entry = ttk.Entry(asc_frame, width=8)
+        course_id_label = ttk.Label(asc_frame, text="Course ID")
+        section_name_entry = ttk.Entry(asc_frame, width=20)
+        section_name_label = ttk.Label(asc_frame, text="Section Name")
+
+        def asc_run():
+            course_id = course_id_entry.get().strip().split("/")
+            if len(course_id) > 1:
+                course_id = course_id[-2]
+            else:
+                course_id = course_id[0]
+            if not course_id.isnumeric():
+                tk.messagebox.showinfo("Error", "Course ID must be a numeric value.\nIt is usually found in the URL.", icon=tkinter.messagebox.ERROR)
+                return
+            section_name = section_name_entry.get().strip()
+            try:
+                Scripts.asc.run(int(course_id), section_name)
+            except Exception as e:
+                tk.messagebox.showinfo("Error", str(e), icon=tkinter.messagebox.ERROR)
+                raise e
+
+        asc_button = tk.Button(asc_frame, text="Run Test (in terminal)", command=asc_run, bg=main_color, fg="white")
+
         # drawing the FTD gui
         use_numeration_check.grid(row=2, column=0, padx=padx, pady=0)
         numeration_start_entry.grid(row=2, column=1, padx=padx, pady=0)
@@ -133,9 +157,18 @@ class App(tk.Tk):
         ccf_button.grid(row=0, column=2, padx=padx, pady=0)
         ccf_frame.grid(row=0, column=1, padx=2 * padx, pady=2 * pady)
 
+        # drawing the ASC gui
+        course_id_label.grid(row=1, column=0, padx=padx, pady=0)
+        section_name_label.grid(row=1, column=1, padx=padx, pady=0)
+        course_id_entry.grid(row=0, column=0, padx=padx, pady=0)
+        section_name_entry.grid(row=0, column=1, padx=padx, pady=0)
+        asc_button.grid(row=0, column=2, padx=padx, pady=0)
+        asc_frame.grid(row=0, column=1, padx=2 * padx, pady=2 * pady)
+
         # drawing the main gui
         tab_control.add(ccf_frame, text="CreateCourseFolders")
         tab_control.add(ftd_frame, text="FormsToDocs")
+        tab_control.add(asc_frame, text="AnalyzeSectionCompletion")
         tab_control.pack(expand=1, fill="both", padx=2 * padx, pady=(0.5 * pady, 2 * pady))
 
 
