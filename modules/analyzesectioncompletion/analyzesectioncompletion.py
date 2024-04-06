@@ -69,8 +69,10 @@ class AnalyzeSectionCompletion(Script):
         self.teachable = Teachable()
         self.teachable.authorize(teachable_key_path)
         self.indent = 0
+        self.names = {}
+        self.valid_order = []
 
-
+    def reinit_valid_names(self):
         self.names = {
             "odp_do_zad_dom": NameContainer("Odpowiedzi do zadania domowego z modu\u0142u [0-9]+", NameContainer.ONE, NameContainer.SEND_WARNING, display_name="Odpowiedzi do zadania domowego"),
             "zeszyt_cw": NameContainer("Zeszyt ćwiczeń", NameContainer.ONE),
@@ -93,6 +95,7 @@ class AnalyzeSectionCompletion(Script):
         ]
 
     def run(self, course_id: int, section_name: str):
+        self.reinit_valid_names()
         self.indent = 0
         self._thumbnails.clear()
         response = self.teachable.get_course(course_id)
@@ -246,8 +249,11 @@ class AnalyzeSectionCompletion(Script):
         while i < len(valid_order):
             try:
                 if order[i] != valid_order[i]:
-                    msg(f"Nieprawidłowa kolejność: {order[i]}, {valid_order[i]}")
-                    return False
+                    if valid_order[i] == "qna":
+                        valid_order.pop(i)
+                    else:
+                        msg(f"Nieprawidłowa kolejność: {order[i]}, {valid_order[i]}")
+                        return False
             except IndexError:
                 msg(f"Błąd: {order[i - 1]}")
                 return False
@@ -368,7 +374,7 @@ class AnalyzeSectionCompletion(Script):
 
 if __name__ == "__main__":
     asc = AnalyzeSectionCompletion("/home/igor/Documents/code/py/work_automation/credentials/teachable_key.json")
-    asc.run(2396071, "MODUŁ 1")
+    asc.run(2153124, "MODUŁ 3")
 
 """
 
