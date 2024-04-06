@@ -10,6 +10,51 @@ from teachable.teachable import Teachable
 from misc.terminalcolors import ANSITerminalColors as ANSI
 
 
+class NameContainer:
+    ANY = -1
+    ONE = 1
+    SEND_WARNING = 10000
+    SEND_ERROR = 10001
+
+    def __init__(self, regex: str, count: int, on_missing: int = SEND_ERROR, display_name: str | None = None):
+        self.regex = regex
+        self.count = count
+        self.on_missing = on_missing
+        self.strings_matched = 0
+        self.display_name = display_name
+        if display_name is None:
+            self.display_name = self.regex
+
+    def compare(self, s: str) -> bool:
+        if re.fullmatch(self.regex.strip(), s.strip()):
+            self.strings_matched += 1
+            return True
+        return False
+
+    def found_all(self) -> bool:
+        return self.strings_matched == self.count or (self.count is self.ANY and self.strings_matched > 0)
+
+    def send_message(self):
+        if self.found_all():
+            AnalyzeSectionCompletion.send_msg(
+                1,
+                AnalyzeSectionCompletion.OKAY,
+                f"'{self.display_name}' znaleziony ({self.strings_matched})."
+            )
+        elif self.strings_matched > 0:
+            AnalyzeSectionCompletion.send_msg(
+                1,
+                AnalyzeSectionCompletion.ERROR if self.on_missing is self.SEND_ERROR else AnalyzeSectionCompletion.WARNING,
+                f"'{self.display_name}' występuje nieprawidłową ilość razy ({self.strings_matched} znalezione, {self.count} powinno)."
+            )
+        else:
+            AnalyzeSectionCompletion.send_msg(
+                1,
+                AnalyzeSectionCompletion.ERROR if self.on_missing is self.SEND_ERROR else AnalyzeSectionCompletion.WARNING,
+                f"'{self.display_name}' nie znaleziony. REGEX: {self.regex}"
+            )
+
+
 class AnalyzeSectionCompletion(Script):
     RUNNING = f"{ANSI.OKBLUE}[⚙]{ANSI.ENDC}  "
     OKAY = f"{ANSI.OKGREEN}[✓]{ANSI.ENDC}  "
@@ -24,6 +69,28 @@ class AnalyzeSectionCompletion(Script):
         self.teachable = Teachable()
         self.teachable.authorize(teachable_key_path)
         self.indent = 0
+
+
+        self.names = {
+            "odp_do_zad_dom": NameContainer("Odpowiedzi do zadania domowego z modu\u0142u [0-9]+", NameContainer.ONE, NameContainer.SEND_WARNING, display_name="Odpowiedzi do zadania domowego"),
+            "zeszyt_cw": NameContainer("Zeszyt ćwiczeń", NameContainer.ONE),
+            "quiz_przed": NameContainer("Sprawdź siebie", NameContainer.ONE),
+            "qna": NameContainer("[0-9]+\.[0-9]+ Q&A", NameContainer.ANY, NameContainer.SEND_WARNING, display_name="Q&A"),
+            "nagranie": NameContainer("[0-9]+\.[0-9]+ .+", NameContainer.ANY, display_name="Nagrania kursu"),
+            "quiz_po": NameContainer("Quiz po zajęciach", NameContainer.ONE),
+            "zad_pyt": NameContainer("Zadaj pytanie", NameContainer.ONE),
+            "zad_dom": NameContainer("Zadanie domowe", NameContainer.ONE)
+        }
+        self.valid_order = [
+            "odp_do_zad_dom",
+            "zeszyt_cw",
+            "quiz_przed",
+            "nagranie",
+            "quiz_po",
+            "qna",
+            "zad_pyt",
+            "zad_dom"
+        ]
 
     def run(self, course_id: int, section_name: str):
         self.indent = 0
@@ -58,9 +125,9 @@ class AnalyzeSectionCompletion(Script):
 
         self.send_msg(0, self.RUNNING, "Start etapu 1 - konwencje nazwowe.")
         self.indent = 1
-        lecture_parts = self.test_konwencje_nazwowe(lecture_data)
+        lecture_parts, order = self.test_konwencje_nazwowe(lecture_data)
         self.indent = 0
-        if lecture_parts is None:
+        if lecture_parts is None or not self.is_valid_order(order):
             self.send_msg(0, self.ERROR, "Test nie przeszedł etapu 1 - konwencje nazwowe.\n")
             return
         else:
@@ -113,52 +180,7 @@ class AnalyzeSectionCompletion(Script):
 
     # ---------------------- testing methods below ---------------------------------------------
 
-    def test_konwencje_nazwowe(self, lectures) -> dict | None:
-
-        class NameContainer:
-            ANY = -1
-            ONE = 1
-            SEND_WARNING = 10000
-            SEND_ERROR = 10001
-
-            def __init__(self, regex: str, count: int, on_missing: int = SEND_ERROR, display_name: str | None = None):
-                self.regex = regex
-                self.count = count
-                self.on_missing = on_missing
-                self.strings_matched = 0
-                self.display_name = display_name
-                if display_name is None:
-                    self.display_name = self.regex
-
-            def compare(self, s: str) -> bool:
-                if re.fullmatch(self.regex.strip(), s.strip()):
-                    self.strings_matched += 1
-                    return True
-                return False
-
-            def found_all(self) -> bool:
-                return self.strings_matched == self.count or (self.count is self.ANY and self.strings_matched > 0)
-
-            def send_message(self):
-                if self.found_all():
-                    AnalyzeSectionCompletion.send_msg(
-                        1,
-                        AnalyzeSectionCompletion.OKAY,
-                        f"'{self.display_name}' znaleziony ({self.strings_matched})."
-                    )
-                elif self.strings_matched > 0:
-                    AnalyzeSectionCompletion.send_msg(
-                        1,
-                        AnalyzeSectionCompletion.ERROR if self.on_missing is self.SEND_ERROR else AnalyzeSectionCompletion.WARNING,
-                        f"'{self.display_name}' występuje nieprawidłową ilość razy ({self.strings_matched} znalezione, {self.count} powinno)."
-                    )
-                else:
-                    AnalyzeSectionCompletion.send_msg(
-                        1,
-                        AnalyzeSectionCompletion.ERROR if self.on_missing is self.SEND_ERROR else AnalyzeSectionCompletion.WARNING,
-                        f"'{self.display_name}' nie znaleziony. REGEX: {self.regex}"
-                    )
-
+    def test_konwencje_nazwowe(self, lectures) -> list | None:
 
         out = {
             "odp_do_zad_dom": None,
@@ -171,30 +193,23 @@ class AnalyzeSectionCompletion(Script):
             "zad_dom": None,
             "inne": []
         }
+        order = []
         errored = False
-        names = {
-            "odp_do_zad_dom": NameContainer("Odpowiedzi do zadania domowego z modu\u0142u [0-9]+", NameContainer.ONE, NameContainer.SEND_WARNING, display_name="Odpowiedzi do zadania domowego"),
-            "zeszyt_cw": NameContainer("Zeszyt ćwiczeń", NameContainer.ONE),
-            "quiz_przed": NameContainer("Sprawdź siebie", NameContainer.ONE),
-            "qna": NameContainer("[0-9]+\.[0-9]+ Q&A", NameContainer.ANY, NameContainer.SEND_WARNING, display_name="Q&A"),
-            "nagranie": NameContainer("[0-9]+\.[0-9]+ .+", NameContainer.ANY, display_name="Nagrania kursu"),
-            "quiz_po": NameContainer("Quiz po zajęciach", NameContainer.ONE),
-            "zad_pyt": NameContainer("Zadaj pytanie", NameContainer.ONE),
-            "zad_dom": NameContainer("Zadanie domowe", NameContainer.ONE)
-        }
-        names_keys = list(names.keys())
+        names_keys = list(self.names.keys())
 
         # --------------------------------------------------------------------------------------------------------
 
         for lec in lectures:
             lec_name = lec["lecture"]["name"]
             for key in names_keys:
-                if not names[key].compare(lec_name):
+                if not self.names[key].compare(lec_name):
                     continue
                 if type(out[key]) is list:
                     out[key].append(lec["lecture"])
+                    order.append(key)
                 else:
                     out[key] = lec["lecture"]
+                    order.append(key)
                 break
             else:
                 self.send_msg(1, self.WARNING, f"`{lec_name}` istnieje jako dodatkowa lekcja.")
@@ -203,15 +218,42 @@ class AnalyzeSectionCompletion(Script):
         print()
 
         for key in names_keys:
-            if not names[key].found_all() and names[key].on_missing is NameContainer.SEND_ERROR:
+            if not self.names[key].found_all() and self.names[key].on_missing is NameContainer.SEND_ERROR:
                 errored = True
-            names[key].send_message()
+            self.names[key].send_message()
 
         # --------------------------------------------------------------------------------------------------------
 
         if errored:
-            return None
-        return out
+            return [None, None]
+        return [out, order]
+
+    def is_valid_order(self, raw_order: list) -> bool:
+        msg = lambda m: self.send_msg(1, self.ERROR, m)
+        order = []
+        for lec in raw_order:
+            if lec not in order:
+                order.append(lec)
+        valid_order = self.valid_order.copy()
+        i = 0
+        if valid_order[0] != order[0]:
+            if valid_order[0] != "odp_do_zad_dom":
+                msg(f"Nieprawidłowa kolejność: {order[0]}, {valid_order[0]}")
+                return False
+            else:
+                valid_order.pop(0)
+
+        while i < len(valid_order):
+            try:
+                if order[i] != valid_order[i]:
+                    msg(f"Nieprawidłowa kolejność: {order[i]}, {valid_order[i]}")
+                    return False
+            except IndexError:
+                msg(f"Błąd: {order[i - 1]}")
+                return False
+            i += 1
+
+        return True
 
     def test_answers_for_hw(self, content: dict | None) -> bool:
         if content is None:
@@ -326,7 +368,7 @@ class AnalyzeSectionCompletion(Script):
 
 if __name__ == "__main__":
     asc = AnalyzeSectionCompletion("/home/igor/Documents/code/py/work_automation/credentials/teachable_key.json")
-    asc.run(2480145, "Test skryptu ASC")
+    asc.run(2396071, "MODUŁ 1")
 
 """
 
